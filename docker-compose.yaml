@@ -1,0 +1,16 @@
+version: '3.3'
+
+services:
+  flowerserver:
+    image: flowerserver
+
+  flowerclient:
+    depends_on:
+      - flowerserver
+    image: flowerclient
+    env_file:
+      - ./data.env
+    deploy:
+      mode: replicated
+      replicas: 2
+
