@@ -1,5 +1,20 @@
 import flwr as fl
-import tensorflow as tf
+import time
+
+dbs = [
+    "bloodmnist",
+    "breastmnist",
+    "chestmnist",
+    "dermamnist",
+    "octmnist",
+    "organamnist",
+    "organcmnist",
+    "organsmnist",
+    "pathmnist",
+    "pneumoniamnist",
+    "retinamnist",
+    "tissuemnist",
+]
 
 def weighted_average(metrics):
     # Multiply accuracy of each client by number of examples used
@@ -18,5 +33,12 @@ strategy = fl.server.strategy.FedAvg(
     evaluate_metrics_aggregation_fn=weighted_average,
 )
 
-fl.server.start_server(config=fl.server.ServerConfig(num_rounds=10),
-                       strategy=strategy)
+for db in dbs:
+    print(f"Starting train for {db} DB!\n\n")
+    history = fl.server.start_server(config=fl.server.ServerConfig(num_rounds=10),
+                                    strategy=strategy)
+    with open(f"./experiment-logs/{db}-10local-10global.log", "w+") as f:
+        f.write(f"DB = {db}\n\n")
+        f.write(str(history))
+    print("---------------------------------------\n\n")
+    time.sleep(2)

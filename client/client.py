@@ -1,7 +1,31 @@
 import flwr as fl
 import tensorflow as tf
 import os
+import time
 import numpy as np
+from dotenv import load_dotenv
+
+load_dotenv()
+
+class FlowerClient(fl.client.NumPyClient):
+    def __init__(self, x_train, y_train, x_test, y_test):
+        self.x_train = x_train
+        self.y_train = y_train
+        self.x_test = x_test
+        self.y_test = y_test
+
+    def get_parameters(self, config):
+        return model.get_weights()
+
+    def fit(self, parameters, config):
+        model.set_weights(parameters)
+        model.fit(self.x_train, self.y_train, epochs=10, batch_size=32, verbose=1)
+        return model.get_weights(), len(x_train), {}
+
+    def evaluate(self, parameters, config):
+        model.set_weights(parameters)
+        loss, accuracy = model.evaluate(self.x_test, self.y_test)
+        return loss, len(self.x_test), {"accuracy": float(accuracy)}
 
 def gen_dataset(path):
     data = np.load(path)
@@ -12,32 +36,36 @@ def gen_dataset(path):
     return x_train, y_train, x_test, y_test, num_classes, input_shape
 
 HOST = os.getenv("SERVERHOST")
-DB_NAME = os.getenv("DB_NAME")
-x_train, y_train, x_test, y_test, num_classes, input_shape = gen_dataset(os.path.join('MedMNIST', DB_NAME + ".npz"))
 
-def get_model():
-    inputs = tf.keras.Input(input_shape)
-    model = tf.keras.applications.efficientnet.EfficientNetB0(input_tensor=inputs, classes=num_classes, weights=None)
-    return tf.keras.Model(inputs, model.output)
+dbs = [
+    "./client/MedMNIST/bloodmnist.npz",
+    "./client/MedMNIST/breastmnist.npz",
+    "./client/MedMNIST/chestmnist.npz",
+    "./client/MedMNIST/dermamnist.npz",
+    "./client/MedMNIST/octmnist.npz",
+    "./client/MedMNIST/organamnist.npz",
+    "./client/MedMNIST/organcmnist.npz",
+    "./client/MedMNIST/organsmnist.npz",
+    "./client/MedMNIST/pathmnist.npz",
+    "./client/MedMNIST/pneumoniamnist.npz",
+    "./client/MedMNIST/retinamnist.npz",
+    "./client/MedMNIST/tissuemnist.npz",
+]
 
-model = get_model()
+for DB_NAME in dbs:
 
-model.compile("adam", "sparse_categorical_crossentropy", metrics=["accuracy"])
+    x_train, y_train, x_test, y_test, num_classes, input_shape = gen_dataset(DB_NAME)
 
-class CifarClient(fl.client.NumPyClient):
-    def get_parameters(self, config):
-        return model.get_weights()
+    def get_model():
+        inputs = tf.keras.Input(input_shape)
+        model = tf.keras.applications.resnet.ResNet50(input_tensor=inputs, classes=num_classes, weights=None)
+        return tf.keras.Model(inputs, model.output)
 
-    def fit(self, parameters, config):
-        model.set_weights(parameters)
-        model.fit(x_train, y_train, epochs=1, batch_size=32, verbose=1)
-        return model.get_weights(), len(x_train), {}
+    model = get_model()
 
-    def evaluate(self, parameters, config):
-        model.set_weights(parameters)
-        loss, accuracy = model.evaluate(x_test, y_test)
-        return loss, len(x_test), {"accuracy": float(accuracy)}
+    model.compile("adam", "sparse_categorical_crossentropy", metrics=["accuracy"])
 
-print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
-
-fl.client.start_numpy_client(server_address=f"{HOST}:8080", client=CifarClient())
+    print(f"Starting client for {DB_NAME}\n\n")
+    fl.client.start_numpy_client(server_address=f"{HOST}:8080", client=FlowerClient(x_train, y_train, x_test, y_test))
+    print("------------------------------------\n\n")
+    time.sleep(4)
